@@ -377,6 +377,87 @@ def logn_halo(R, Z, R_solar=8.2, Z_solar=0.025, R_smooth=2.0,
     return logn
 
 
+
+
+def logn_halo_doubly_broken(R, Z, R_solar=8.2, Z_solar=0.025, R_smooth=2.0,
+              eta1=1.7, eta2=3.09, eta3=4.58, r1=11.85, r2=28.33, q_ctr=0.2, q_inf=0.8, r_q=6.):
+    """
+    Log-number density of stars in the halo component of the galaxy.
+
+    Parameters
+    ----------
+    R : `~numpy.ndarray` of shape (N)
+        The distance from the center of the galaxy.
+
+    Z : `~numpy.ndarray` of shape (N)
+        The height above the galactic midplane.
+
+    R_solar : float, optional
+        The solar distance from the center of the galaxy in kpc.
+        Default is `8.2`.
+
+    Z_solar : float, optional
+        The solar height above the galactic midplane in kpc.
+        Default is `0.025`.
+
+    R_smooth : float, optional
+        The smoothing radius in kpc used to avoid singularities
+        around the Galactic center. Default is `2.0`.
+
+    eta : float, optional
+        The (negative) power law index describing the number density.
+        Default is `4.2`.
+
+    q_ctr : float, optional
+        The nominal oblateness of the halo at Galactic center.
+        Default is `0.2`.
+
+    q_inf : float, optional
+        The nominal oblateness of the halo infinitely far away.
+        Default is `0.8`.
+
+    r_q : float, optional
+        The scale radius over which the oblateness changes in kpc.
+        Default is `6.`.
+
+    Returns
+    -------
+    logn : `~numpy.ndarray` of shape (N)
+        The corresponding normalized ln(number density).
+
+    """
+
+    # Compute distance from Galactic center.
+    r = np.sqrt(R**2 + Z**2)
+
+    # Compute oblateness.
+    rp = np.sqrt(r**2 + r_q**2)
+    q = q_inf - (q_inf - q_ctr) * np.exp(1. - rp / r_q)
+
+    # Compute effective radius.
+    Reff = np.sqrt(R**2 + (Z / q)**2 + R_smooth**2)
+
+    # Compute solar value for normalization.
+    rp_solar = np.sqrt(R_solar**2 + Z_solar**2 + r_q**2)
+    q_solar = q_inf - (q_inf - q_ctr) * np.exp(1. - rp_solar / r_q)
+    Reff_solar = np.sqrt(R_solar**2 + (Z_solar / q_solar)**2
+                         + R_smooth**2)
+
+    # Compute inner component.
+    def logn_inner(Reff):
+        if Reff < r1:
+            logn = -eta1 * np.log(Reff / Reff_solar)
+        elif Reff < r2:
+            logn = (eta2 - eta1) * np.log(r1 / Reff_solar) - eta2 * np.log(Reff / Reff_solar)
+        else:
+            logn = (eta3 - eta2) * np.log(2 / Reff_solar) + (eta2 - eta1) * np.log(r1 / Reff_solar) - eta3 * np.log(Reff / Reff_solar)
+        return logn
+
+    logn = np.array([logn_inner(Reff[i]) for i in range(len(Reff))])
+
+    return logn
+
+
 def logp_feh(feh, feh_mean=-0.2, feh_sigma=0.3):
     """
     Log-prior for the metallicity in a given component of the galaxy.
@@ -477,151 +558,13 @@ def gal_lnprior(dists, coord, labels=None, R_solar=8.2, Z_solar=0.025,
                 R_thin=2.6, Z_thin=0.3, Rs_thin=2.0, 
                 R_thick=2.0, Z_thick=0.9, f_thick=0.04, Rs_thick=2.0, 
                 Rs_halo=2.0, q_halo_ctr=0.2, q_halo_inf=0.8, r_q_halo=6.0,
-                eta_halo=4.2, f_halo=0.005,
+                eta_halo1=1.7, eta_halo2=3.09, eta_halo3=4.58, f_halo=0.005,
                 feh_thin=-0.2, feh_thin_sigma=0.3,
                 feh_thick=-0.7, feh_thick_sigma=0.4,
                 feh_halo=-1.6, feh_halo_sigma=0.5,
                 max_age=13.8, min_age=0., feh_age_ctr=-0.5, feh_age_scale=0.5,
-                nsigma_from_max_age=2., max_sigma=4., min_sigma=1.,
+                nsigma_from_max_age=2., max_sigma=4., min_sigma=1., halo_hyperparam=0.,
                 return_components=False):
-    """
-    Log-prior for a galactic model containing a thin disk, thick disk, and
-    halo. The default behavior imposes a prior based on the total
-    number density from all three components. If the metallicity and/or age is
-    provided, then an associated galactic metallicity and/or age model
-    is also imposed. Partially based on Bland-Hawthorn & Gerhard (2016).
-
-    Parameters
-    ----------
-    dists : `~numpy.ndarray` of shape `(N,)`
-        Distance from the observer in kpc.
-
-    coord : 2-tuple
-        The `(l, b)` galaxy coordinates of the object.
-
-    labels : structured `~numpy.ndarray` of shape `(N, Nlabels)`
-        Collection of labels associated with the models whose distance
-        estimates are provided. Must contain the label `'feh'` to apply
-        the metallicity prior.
-
-    R_solar : float, optional
-        The solar distance from the center of the galaxy in kpc.
-        Default is `8.2`.
-
-    Z_solar : float, optional
-        The solar height above the galactic midplane in kpc.
-        Default is `0.025`.
-
-    R_thin : float, optional
-        The scale radius of the thin disk in kpc. Default is `2.6`.
-
-    Z_thin : float, optional
-        The scale height of the thin disk in kpc. Default is `0.3`.
-
-    Rs_thin : float, optional
-        The smoothing radius in kpc used to avoid "spikes"
-        around the Galactic center. Default is `2.0`.
-
-    R_thick : float, optional
-        The scale radius of the thin disk in kpc. Default is `2.0`.
-
-    Z_thick : float, optional
-        The scale height of the thin disk in kpc. Default is `0.9`.
-
-    f_thick : float, optional
-        The fractional weight applied to the thick disk number density
-        relative to the thin disk.
-        Default is `0.04`.
-
-    Rs_thick : float, optional
-        The smoothing radius in kpc used to avoid "spikes"
-        around the Galactic center. Default is `2.0`.
-
-    Rs_halo : float, optional
-        The smoothing radius in kpc used to avoid singularities
-        around the Galactic center. Default is `2.0`.
-
-    q_halo_ctr : float, optional
-        The nominal oblateness of the halo at Galactic center.
-        Default is `0.2`.
-
-    q_halo_inf : float, optional
-        The nominal oblateness of the halo infinitely far away.
-        Default is `0.8`.
-
-    r_q_halo : float, optional
-        The scale radius over which the oblateness changes in kpc.
-        Default is `6.`.
-
-    eta_halo : float, optional
-        The (negative) power law index describing the halo number density.
-        Default is `4.2`.
-
-    f_halo : float, optional
-        The fractional weight applied to the halo number density.
-        Default is `0.005`.
-
-    feh_thin : float, optional
-        The mean metallicity of the thin disk. Default is `-0.2`.
-
-    feh_thin_sigma : float, optional
-        The standard deviation in the metallicity of the thin disk.
-        Default is `0.3`.
-
-    feh_thick : float, optional
-        The mean metallicity of the thick disk. Default is `-0.7`.
-
-    feh_thick_sigma : float, optional
-        The standard deviation in the metallicity of the thick disk.
-        Default is `0.4`.
-
-    feh_halo : float, optional
-        The mean metallicity of the halo. Default is `-1.6`.
-
-    feh_halo_sigma : float, optional
-        The standard deviation in the metallicity of the halo.
-        Default is `0.5`.
-
-    max_age : float, optional
-        The maximum allowed mean age (in Gyr). Default is `13.8`.
-
-    min_age : float, optional
-        The minimum allowed mean age (in Gyr). Default is `0.`.
-
-    feh_age_ctr : float, optional
-        The mean metallicity where the mean age is halfway between
-        `max_age` and `min_age`. Default is `-0.5`.
-
-    feh_age_scale : float, optional
-        The exponential scale-length at which the mean age approaches
-        `max_age` or `min_age` as it moves to lower or higher mean metallicity,
-        respectively. Default is `0.5`.
-
-    nsigma_from_max_age : float, optional
-        The number of sigma away the mean age should be from `max_age`
-        (i.e. the mean age is `nsigma_from_max_age`-sigma lower
-        than `max_age`). Default is `2.`.
-
-    max_sigma : float, optional
-        The maximum allowed sigma (in Gyr). Default is `4.`.
-
-    min_sigma : float, optional
-        The minimum allowed sigma (in Gyr). Default is `1.`.
-
-    return_components : bool, optional
-        Whether to also return the separate components that make up
-        the prior. Default is `False`.
-
-    Returns
-    -------
-    lnprior : `~numpy.ndarray` of shape (N)
-        The corresponding normalized ln(prior).
-
-    components : dict, optional
-        The individual components of `lnprior`.
-
-    """
-
     # Compute volume factor.
     vol_factor = 2. * np.log(dists + 1e-300)  # dV = r**2 factor
 
@@ -647,8 +590,10 @@ def gal_lnprior(dists, coord, labels=None, R_solar=8.2, Z_solar=0.025,
     logp_thick += vol_factor + np.log(f_thick)
 
     # Get halo component.
-    logp_halo = logn_halo(R, Z, R_solar=R_solar, Z_solar=Z_solar,
-                          R_smooth=Rs_halo, eta=eta_halo,
+    assert halo_hyperparam >= 0., "Halo hyperparameter must be non-negative."
+    r1, r2 = 11.85 / (1 + halo_hyperparam), 28.33 / (1 + halo_hyperparam)
+    logp_halo = logn_halo_doubly_broken(R, Z, R_solar=R_solar, Z_solar=Z_solar,
+                          R_smooth=Rs_halo, eta1=eta_halo1, eta2=eta_halo2, eta3=eta_halo3, r1=r1, r2=r2,
                           q_ctr=q_halo_ctr, q_inf=q_halo_inf, r_q=r_q_halo)
     logp_halo += vol_factor + np.log(f_halo)
 

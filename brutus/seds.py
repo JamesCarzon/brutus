@@ -716,7 +716,7 @@ class SEDmaker(MISTtracks):
             fitting. If not provided, the default is
             `np.exp(-np.abs(rv_grid - 3.3) / 0.5)`.
 
-        dist : float, optional
+        dist_grid : `~numpy.ndarray`, optional
             Distance in parsecs. Default is `1000.` (i.e. 1 kpc).
 
         loga_max : float, optional
@@ -750,7 +750,7 @@ class SEDmaker(MISTtracks):
 
         # Initialize grid.
         labels = ['mini', 'eep', 'feh', 'afe', 'smf']
-        ltype = np.dtype([(n, np.float) for n in labels])
+        ltype = np.dtype([(n, float) for n in labels])
         if mini_grid is None:  # initial mass
             mini_grid = np.arange(0.5, 2.0 + 1e-5, 0.025)
         if eep_grid is None:  # EEP
@@ -783,8 +783,8 @@ class SEDmaker(MISTtracks):
         Ngrid = len(self.grid_label)
 
         # Generate SEDs on the grid.
-        ptype = np.dtype([(n, np.float) for n in self.predictions])
-        stype = np.dtype([(n, np.float, 3) for n in self.filters])
+        ptype = np.dtype([(n, float) for n in self.predictions])
+        stype = np.dtype([(n, float, 3) for n in self.filters])
         self.grid_sed = np.full(Ngrid, np.nan, dtype=stype)
         self.grid_param = np.full(Ngrid, np.nan, dtype=ptype)
         self.grid_sel = np.ones(Ngrid, dtype='bool')

@@ -632,8 +632,8 @@ def load_models(filepath, filters=None, labels=None,
 
     # Read in labels.
     combined_labels = np.full(len(models), np.nan,
-                              dtype=np.dtype([(n, np.float) for n in labels]))
-    label_mask = np.zeros(1, dtype=np.dtype([(n, np.bool) for n in labels]))
+                              dtype=np.dtype([(n, float) for n in labels]))
+    label_mask = np.zeros(1, dtype=np.dtype([(n, bool) for n in labels]))
     try:
         # Grab "labels" (inputs).
         flabels = f['labels'][:]
