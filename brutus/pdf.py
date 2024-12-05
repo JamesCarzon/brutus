@@ -450,7 +450,7 @@ def logn_halo_doubly_broken(R, Z, R_solar=8.2, Z_solar=0.025, R_smooth=2.0,
         elif Reff < r2:
             logn = (eta2 - eta1) * np.log(r1 / Reff_solar) - eta2 * np.log(Reff / Reff_solar)
         else:
-            logn = (eta3 - eta2) * np.log(2 / Reff_solar) + (eta2 - eta1) * np.log(r1 / Reff_solar) - eta3 * np.log(Reff / Reff_solar)
+            logn = (eta3 - eta2) * np.log(r2 / Reff_solar) + (eta2 - eta1) * np.log(r1 / Reff_solar) - eta3 * np.log(Reff / Reff_solar)
         return logn
 
     logn = np.array([logn_inner(Reff[i]) for i in range(len(Reff))])
@@ -591,7 +591,9 @@ def gal_lnprior(dists, coord, labels=None, R_solar=8.2, Z_solar=0.025,
 
     # Get halo component.
     assert halo_hyperparam >= 0., "Halo hyperparameter must be non-negative."
-    r1, r2 = 11.85 / (1 + halo_hyperparam), 28.33 / (1 + halo_hyperparam)
+    assert halo_hyperparam <= 1., "Halo hyperparameter must be <= 1."
+    r1 = 11.85 - (1 - halo_hyperparam) * 0.71 + halo_hyperparam * 0.92
+    r2 = 28.33 - (1 - halo_hyperparam) * 1.55 + halo_hyperparam * 1.05
     logp_halo = logn_halo_doubly_broken(R, Z, R_solar=R_solar, Z_solar=Z_solar,
                           R_smooth=Rs_halo, eta1=eta_halo1, eta2=eta_halo2, eta3=eta_halo3, r1=r1, r2=r2,
                           q_ctr=q_halo_ctr, q_inf=q_halo_inf, r_q=r_q_halo)
