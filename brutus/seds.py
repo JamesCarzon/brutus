@@ -292,7 +292,7 @@ class MISTtracks(object):
         if ndim == 1:
             preds = self.interpolator(labels)[0]
         elif ndim == 2:
-            preds = self.interpolator(labels)
+            preds = self.interpolator(labels.T) # Input: (Nobj, Nlabel), Output: (Nobj, Npred)
         else:
             raise ValueError("Input `labels` not 1-D or 2-D.")
 
